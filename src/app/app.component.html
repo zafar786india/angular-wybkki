@@ -1,5 +1,160 @@
-<hello name="{{ name }}"></hello>
-<p>
+// server.js (Node.js Backend)
+const express = require('express');
+const cors = require('cors');
 
-  <button class="btn" [ngClass]="{'btn-primary':'background'}" (click)="background=!background">{{background==true ? "bootstrap" : "not boostrap"}}</button>
-</p>
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+let todos = [];
+
+// Get all todos
+app.get('/api/todos', (req, res) => {
+    res.json(todos);
+});
+
+// Add a new todo
+app.post('/api/todos', (req, res) => {
+    const newTodo = { id: Date.now(), text: req.body.text, completed: false };
+    todos.push(newTodo);
+    res.status(201).json(newTodo);
+});
+
+// Update a todo
+app.put('/api/todos/:id', (req, res) => {
+    const todoId = parseInt(req.params.id, 10);
+    const todo = todos.find(t => t.id === todoId);
+    if (todo) {
+        todo.completed = req.body.completed;
+        res.json(todo);
+    } else {
+        res.status(404).json({ message: 'Todo not found' });
+    }
+});
+
+// Delete a todo
+app.delete('/api/todos/:id', (req, res) => {
+    const todoId = parseInt(req.params.id, 10);
+    todos = todos.filter(t => t.id !== todoId);
+    res.status(204).send();
+});
+
+const PORT = 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+// App.js (React Frontend)
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import TodoList from './TodoList';
+import TodoForm from './TodoForm';
+
+const App = () => {
+    const [todos, setTodos] = useState([]);
+
+    useEffect(() => {
+        axios.get('http://localhost:5000/api/todos')
+            .then(response => setTodos(response.data))
+            .catch(error => console.error(error));
+    }, []);
+
+    const addTodo = (text) => {
+        axios.post('http://localhost:5000/api/todos', { text })
+            .then(response => setTodos([...todos, response.data]))
+            .catch(error => console.error(error));
+    };
+
+    const toggleTodo = (id, completed) => {
+        axios.put(`http://localhost:5000/api/todos/${id}`, { completed })
+            .then(response => {
+                setTodos(todos.map(todo => todo.id === id ? response.data : todo));
+            })
+            .catch(error => console.error(error));
+    };
+
+    const deleteTodo = (id) => {
+        axios.delete(`http://localhost:5000/api/todos/${id}`)
+            .then(() => {
+                setTodos(todos.filter(todo => todo.id !== id));
+            })
+            .catch(error => console.error(error));
+    };
+
+    return (
+        <div className="app">
+            <h1>Todo App</h1>
+            <TodoForm addTodo={addTodo} />
+            <TodoList todos={todos} toggleTodo={toggleTodo} deleteTodo={deleteTodo} />
+        </div>
+    );
+};
+
+export default App;
+
+// TodoList.js
+import React from 'react';
+import TodoItem from './TodoItem';
+
+const TodoList = ({ todos, toggleTodo, deleteTodo }) => {
+    return (
+        <ul>
+            {todos.map(todo => (
+                <TodoItem 
+                    key={todo.id} 
+                    todo={todo} 
+                    toggleTodo={toggleTodo} 
+                    deleteTodo={deleteTodo} 
+                />
+            ))}
+        </ul>
+    );
+};
+
+export default TodoList;
+
+// TodoItem.js
+import React from 'react';
+
+const TodoItem = ({ todo, toggleTodo, deleteTodo }) => {
+    return (
+        <li>
+            <input 
+                type="checkbox" 
+                checked={todo.completed} 
+                onChange={() => toggleTodo(todo.id, !todo.completed)} 
+            />
+            {todo.text}
+            <button onClick={() => deleteTodo(todo.id)}>Delete</button>
+        </li>
+    );
+};
+
+export default TodoItem;
+
+// TodoForm.js
+import React, { useState } from 'react';
+
+const TodoForm = ({ addTodo }) => {
+    const [text, setText] = useState('');
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        if (text.trim()) {
+            addTodo(text);
+            setText('');
+        }
+    };
+
+    return (
+        <form onSubmit={handleSubmit}>
+            <input 
+                type="text" 
+                value={text} 
+                onChange={(e) => setText(e.target.value)} 
+                placeholder="Add a todo" 
+            />
+            <button type="submit">Add</button>
+        </form>
+    );
+};
+
+export default TodoForm;
